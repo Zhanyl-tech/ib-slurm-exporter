@@ -1,0 +1,5 @@
+# Anchored: a bare "bin/" would also match any nested bin/ directory.
+/bin/
+*.test
+coverage.out
+.DS_Store
