@@ -150,6 +150,14 @@ exporter exists to catch. For shared nodes, the same query against
 `ib_slurm_device_counter_total` still finds the fabric problem — you just have
 to look at `ib_slurm_device_jobs` to see who is on it.
 
+### Dashboard
+
+A ready-to-import Grafana dashboard is in
+[`deploy/grafana-dashboard.json`](deploy/grafana-dashboard.json) — attribution
+health first, then per-job errors, throughput, and device state, in the order
+you actually debug a slow multi-node job. Every query matches the metric and
+counter names above, so it works against a live target with no editing.
+
 ## Deployment
 
 One instance per compute node — a DaemonSet or a systemd unit. Reads only local
@@ -189,6 +197,16 @@ make demo-once # dump the exposition
 Every root — sysfs, proc, verbs, cgroup — is injectable. That is what makes a
 Linux-only exporter testable on a laptop, and it is why `make demo` works
 without an HCA.
+
+## The set
+
+Part of a set of tools covering the lifecycle of a GPU allocation, each built on
+the same rule — never act on absent evidence:
+
+- **ib-slurm-exporter** — this repo. Fabric problems attributed to the job.
+- **[gpu-reaper](https://github.com/Zhanyl-tech/gpu-reaper)** — wasted GPUs during a job.
+- **[epilog-gpu-validator](https://github.com/Zhanyl-tech/epilog-gpu-validator)** — GPU hardware faults between jobs.
+- **[slurm-scheduler-lab](https://github.com/Zhanyl-tech/slurm-scheduler-lab)** — the scheduling policy behind it all.
 
 ## License
 
