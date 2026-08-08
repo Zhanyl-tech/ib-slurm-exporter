@@ -1,0 +1,59 @@
+<svg width="1200" height="830" viewBox="0 0 1200 830" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ttl dsc">
+<title id="ttl">Attributing an InfiniBand counter to the Slurm job that owns it</title>
+<desc id="dsc">A five hop resolution chain from a Slurm cgroup to a hardware counter, joined through an open file descriptor on a uverbs device.</desc>
+
+<rect width="1200" height="830" fill="#1a1520"/>
+
+<rect width="1200" height="86" fill="#241c26"/>
+<rect width="6" height="86" fill="#f5b544"/>
+<text x="44" y="38" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="25" font-weight="700" fill="#e9eff5">Attributing a fabric counter to the job that owns it</text>
+<text x="44" y="66" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="14.5" fill="#828c98">Neither Slurm nor the HCA knows about the other. The bridge is an open file descriptor.</text>
+
+<line x1="90" y1="194" x2="90" y2="642" stroke="#2e2433" stroke-width="3"/>
+
+<circle cx="90" cy="194" r="9" fill="#1a1520" stroke="#58a6ff" stroke-width="2.5"/>
+<circle cx="90" cy="306" r="9" fill="#1a1520" stroke="#58a6ff" stroke-width="2.5"/>
+<circle cx="90" cy="418" r="9" fill="#1a1520" stroke="#58a6ff" stroke-width="2.5"/>
+<circle cx="90" cy="530" r="9" fill="#1a1520" stroke="#f5b544" stroke-width="2.5"/>
+<circle cx="90" cy="642" r="9" fill="#1a1520" stroke="#3fb950" stroke-width="2.5"/>
+
+<circle cx="90" r="6" fill="#58a6ff" opacity="0">
+<animate attributeName="cy" values="194;642" dur="4s" repeatCount="indefinite" begin="0s"/>
+<animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.06;0.92;1" dur="4s" repeatCount="indefinite" begin="0s"/>
+</circle>
+<circle cx="90" r="6" fill="#58a6ff" opacity="0">
+<animate attributeName="cy" values="194;642" dur="4s" repeatCount="indefinite" begin="2s"/>
+<animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.06;0.92;1" dur="4s" repeatCount="indefinite" begin="2s"/>
+</circle>
+
+<rect x="140" y="150" width="1010" height="88" rx="11" fill="#251d28" stroke="#3a3040" stroke-width="1.5"/>
+<text x="166" y="180" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,Arial,sans-serif" font-size="11.5" letter-spacing="1.3" font-weight="700" fill="#58a6ff">1 &#183; SLURM CGROUP</text>
+<text x="166" y="207" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14.5" fill="#e9eff5">/sys/fs/cgroup/.../job_918001/step_0/cgroup.procs</text>
+<text x="166" y="227" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,Arial,sans-serif" font-size="12.5" fill="#828c98">the one place the job ID is authoritative</text>
+
+<rect x="140" y="262" width="1010" height="88" rx="11" fill="#251d28" stroke="#3a3040" stroke-width="1.5"/>
+<text x="166" y="292" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,Arial,sans-serif" font-size="11.5" letter-spacing="1.3" font-weight="700" fill="#58a6ff">2 &#183; PROCESS</text>
+<text x="166" y="319" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14.5" fill="#e9eff5">PID 41001</text>
+<text x="166" y="339" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,Arial,sans-serif" font-size="12.5" fill="#828c98">one rank of the training job</text>
+
+<rect x="140" y="374" width="1010" height="88" rx="11" fill="#251d28" stroke="#58a6ff" stroke-width="2"/>
+<text x="166" y="404" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,Arial,sans-serif" font-size="11.5" letter-spacing="1.3" font-weight="700" fill="#58a6ff">3 &#183; OPEN DESCRIPTOR &#8212; THE JOIN</text>
+<text x="166" y="431" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14.5" fill="#e9eff5">/proc/41001/fd/3  &#8594;  /dev/infiniband/uverbs0</text>
+<text x="166" y="451" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,Arial,sans-serif" font-size="12.5" fill="#adb8c4">any process doing RDMA holds one; it is the only durable link</text>
+
+<rect x="140" y="486" width="1010" height="88" rx="11" fill="#251d28" stroke="#f5b544" stroke-width="2"/>
+<text x="166" y="516" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,Arial,sans-serif" font-size="11.5" letter-spacing="1.3" font-weight="700" fill="#f5b544">4 &#183; SYSFS INDIRECTION &#8212; DO NOT SHORTCUT</text>
+<text x="166" y="543" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14.5" fill="#e9eff5">/sys/class/infiniband_verbs/uverbs0/ibdev  &#8594;  "mlx5_0"</text>
+<text x="166" y="563" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,Arial,sans-serif" font-size="12.5" fill="#f5b544">uverbs3 does not have to mean mlx5_3 &#8212; the numbering is independent</text>
+
+<rect x="140" y="598" width="1010" height="88" rx="11" fill="#251d28" stroke="#3fb950" stroke-width="2"/>
+<text x="166" y="628" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,Arial,sans-serif" font-size="11.5" letter-spacing="1.3" font-weight="700" fill="#3fb950">5 &#183; COUNTER, NOW ATTRIBUTED</text>
+<text x="166" y="655" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="14.5" fill="#e9eff5">/sys/class/infiniband/mlx5_0/ports/1/hw_counters/packet_seq_err</text>
+<text x="166" y="675" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,Arial,sans-serif" font-size="12.5" fill="#3fb950">climbing &#8212; and now it belongs to job_918001</text>
+
+<rect x="140" y="712" width="1010" height="96" rx="11" fill="#2e2433" stroke="#f85149" stroke-width="1.5" stroke-dasharray="6 4"/>
+<rect x="140" y="712" width="5" height="96" fill="#f85149"/>
+<text x="166" y="741" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,Arial,sans-serif" font-size="11.5" letter-spacing="1.4" font-weight="700" fill="#f85149">WHAT CANNOT BE ATTRIBUTED</text>
+<text x="166" y="768" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,Arial,sans-serif" font-size="14.5" fill="#e9eff5">Counters are per-device. The HCA counts packets; it does not know which process sent them.</text>
+<text x="166" y="791" font-family="ui-sans-serif,-apple-system,Segoe UI,Roboto,Arial,sans-serif" font-size="14.5" fill="#e9eff5">Two jobs sharing mlx5_1 cannot be split. The exporter reports that, rather than guessing a share.</text>
+</svg>
