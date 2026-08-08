@@ -26,6 +26,10 @@ owns it, because nothing connects a Slurm job ID to a network device.
 
 ## How the join works
 
+![Five hop chain from a Slurm cgroup through a PID and an open uverbs file descriptor to the per-port hardware counter](docs/join-chain.svg)
+
+<sub>Each hop is a lookup that can be wrong on its own. The fourth is the one that bites: `uverbs3` does not have to mean `mlx5_3`.</sub>
+
 Neither Slurm nor the HCA knows about the other. The bridge is a file
 descriptor:
 
