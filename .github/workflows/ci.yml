@@ -5,25 +5,54 @@ on:
     branches: [main]
   pull_request:
 
+# Read-only token: nothing in CI needs to write to the repository.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go: ['1.24', '1.26']
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      # Actions are pinned to commit SHAs (tag in the comment) so a moved tag
+      # cannot change what runs.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: ${{ matrix.go }}
+          # go.mod pins go 1.26.3. A matrix leg with an older setup-go version
+          # would silently switch to 1.26.3 anyway (go.dev/doc/toolchain), so
+          # there is exactly one toolchain to test.
+          go-version-file: go.mod
+      - name: gofmt
+        run: |
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then echo "gofmt needed:"; echo "$out"; exit 1; fi
+      - name: go mod tidy
+        run: go mod tidy -diff
       - run: go vet ./...
+      - name: staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...
+      # GitHub-hosted runners are unprivileged, so the permission-denied
+      # tests (chmod 000 on /proc/<pid>/fd in the fixture) actually run here.
       - run: go test -race -cover ./...
 
   demo:
-    # The demo is a promise the README makes; if it breaks, the README is wrong.
+    # The demo is a promise the README makes; if it breaks, the README is
+    # wrong. demo-check asserts the documented lines and fails on any
+    # mismatch or non-zero exit.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version: '1.26' }
-      - run: make demo-layouts
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      - run: make demo-check
+
+  image:
+    # Builds the container image (not pushed) and runs the demo inside it,
+    # so the Dockerfile is exercised somewhere. It has not been built on the
+    # development machine.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - run: docker build -t ib-slurm-exporter:ci .
+      - run: docker run --rm ib-slurm-exporter:ci --demo --once | grep -qxF 'ib_slurm_unattributed_jobs 2'
