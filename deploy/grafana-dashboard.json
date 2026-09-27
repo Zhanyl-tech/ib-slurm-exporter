@@ -9,38 +9,77 @@
       "pluginName": "Prometheus"
     }
   ],
-  "__comment": "ib-slurm-exporter — per-job InfiniBand/RoCE fabric health. Metric and label names match internal/collector/collector.go exactly. Counter names match internal/ib/ib.go. Import via Dashboards > New > Import.",
-  "annotations": { "list": [] },
+  "__comment": "ib-slurm-exporter — per-job InfiniBand/RoCE fabric health. Metric names, label names and counter names are checked against the exporter source by TestDashboardQueriesMatchTheExporter (cmd/ib-slurm-exporter). Not yet imported against a live cluster. Import via Dashboards > New > Import.",
+  "annotations": {
+    "list": []
+  },
   "editable": true,
   "graphTooltip": 1,
   "schemaVersion": 39,
-  "tags": ["infiniband", "slurm", "hpc", "fabric"],
-  "time": { "from": "now-6h", "to": "now" },
+  "tags": [
+    "infiniband",
+    "slurm",
+    "hpc",
+    "fabric"
+  ],
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
   "timezone": "",
   "title": "InfiniBand / Slurm — per-job fabric health",
   "templating": {
     "list": [
       {
-        "name": "job_id",
-        "label": "Job",
+        "name": "node",
+        "label": "Node",
         "type": "query",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-        "query": "label_values(ib_slurm_job_counter_total, job_id)",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": "label_values(ib_slurm_device_port_up, instance)",
         "refresh": 2,
         "includeAll": true,
         "multi": true,
-        "current": { "text": "All", "value": "$__all" }
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "job_id",
+        "label": "Job",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": "label_values(ib_slurm_job_device_attributed{instance=~\"$node\"}, job_id)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
       },
       {
         "name": "device",
         "label": "HCA",
         "type": "query",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-        "query": "label_values(ib_slurm_device_port_up, device)",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": "label_values(ib_slurm_device_port_up{instance=~\"$node\"}, device)",
         "refresh": 2,
         "includeAll": true,
         "multi": true,
-        "current": { "text": "All", "value": "$__all" }
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
       }
     ]
   },
@@ -48,100 +87,332 @@
     {
       "type": "row",
       "title": "Attribution health",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
     },
     {
       "type": "stat",
       "title": "Unattributed jobs",
-      "description": "Jobs whose fabric activity could not be pinned to them because they share a device with another job. The exporter refuses to attribute a shared device rather than mislabel it — this is the count it declined.",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "description": "Jobs using RDMA (or whose RDMA use could not be read) that are attributed on no port: they share an HCA, or evidence was incomplete. The exporter refuses to attribute rather than mislabel. Total across the selected nodes; narrow $node to find the node.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
       "fieldConfig": {
         "defaults": {
-          "thresholds": { "mode": "absolute", "steps": [
-            { "color": "green", "value": null },
-            { "color": "yellow", "value": 1 }
-          ] }
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              }
+            ]
+          }
         }
       },
-      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
       "targets": [
-        { "expr": "sum(ib_slurm_unattributed_jobs)", "refId": "A" }
+        {
+          "expr": "sum(ib_slurm_unattributed_jobs{instance=~\"$node\"})",
+          "refId": "A"
+        }
       ]
     },
     {
       "type": "stat",
       "title": "Unresolved SLUID allocations",
-      "description": "Cgroups keyed by SLUID (Slurm 26.05+) with no resolver mapping them to a job id. Non-zero means job attribution is degraded on this node — wire up a resolver.",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "description": "Slurm 26.05 job cgroups (named by SLUID) that could not be mapped to a job ID from the slurmstepd title or the squeue cache. They still count as device users. Total across the selected nodes; narrow $node to find the node.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
       "fieldConfig": {
         "defaults": {
-          "thresholds": { "mode": "absolute", "steps": [
-            { "color": "green", "value": null },
-            { "color": "yellow", "value": 1 }
-          ] }
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              }
+            ]
+          }
         }
       },
-      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
       "targets": [
-        { "expr": "sum(ib_slurm_unresolved_sluid_allocations)", "refId": "A" }
+        {
+          "expr": "sum(ib_slurm_unresolved_sluid_allocations{instance=~\"$node\"})",
+          "refId": "A"
+        }
       ]
     },
     {
       "type": "stat",
       "title": "Scrape errors",
-      "description": "1 when the last scrape failed. A gap in this metric is itself a signal — the exporter is designed so a scrape failure never looks like healthy zeros.",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "description": "Sources (sysfs, cgroup, procfd, rdma) that failed on the last sample. Any failure that could make a shared port look exclusive also suppresses job attribution. Total across the selected nodes; narrow $node to find the node.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
       "fieldConfig": {
         "defaults": {
-          "thresholds": { "mode": "absolute", "steps": [
-            { "color": "green", "value": null },
-            { "color": "red", "value": 1 }
-          ] }
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
         }
       },
-      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
       "targets": [
-        { "expr": "sum(ib_slurm_scrape_error)", "refId": "A" }
+        {
+          "expr": "sum(ib_slurm_scrape_error{instance=~\"$node\"})",
+          "refId": "A"
+        }
       ]
     },
     {
       "type": "stat",
-      "title": "Shared devices (attribution suppressed)",
-      "description": "Devices held by more than one job. On these, per-job counters are intentionally not emitted.",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "title": "Unreadable job processes",
+      "description": "Job PIDs whose /proc/<pid>/fd could not be read (missing CAP_DAC_READ_SEARCH or CAP_SYS_PTRACE, hidepid, wrong PID namespace). Above 0 suppresses all job attribution on that node. Total across the selected nodes; narrow $node to find the node.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
       "fieldConfig": {
         "defaults": {
-          "thresholds": { "mode": "absolute", "steps": [
-            { "color": "green", "value": null },
-            { "color": "yellow", "value": 1 }
-          ] }
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
         }
       },
-      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
       "targets": [
-        { "expr": "count(ib_slurm_device_jobs > 1)", "refId": "A" }
+        {
+          "expr": "sum(ib_slurm_pid_fd_unreadable{instance=~\"$node\"}) or vector(0)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Shared ports (attribution suppressed)",
+      "description": "Ports used by more than one job. On these, per-job counters are intentionally not emitted. Total across the selected nodes; narrow $node to find the node.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "count(ib_slurm_device_jobs{instance=~\"$node\"} > 1) or vector(0)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Saturated counters",
+      "description": "Fixed-width PMA counters (e.g. 8-bit link_downed) at their maximum. rate() reads 0 on these until the subnet manager's perfmgr or UFM clears them. Total across the selected nodes; narrow $node to find the node.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "count(ib_slurm_device_counter_saturated{instance=~\"$node\"} == 1) or vector(0)",
+          "refId": "A"
+        }
       ]
     },
     {
       "type": "row",
       "title": "Per-job fabric errors — the leading indicator of a slow collective",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 }
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      }
     },
     {
       "type": "timeseries",
       "title": "Retransmit & sequence errors by job",
-      "description": "packet_seq_err, out_of_sequence and rnr_nak_retry_err rising on a job's HCA is the fabric telling you a collective is stalling before any throughput chart shows it. These are the counters worth paging on.",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
-      "fieldConfig": { "defaults": { "unit": "cps", "custom": { "drawStyle": "line", "fillOpacity": 10 } } },
+      "description": "Increase observed while the job was the port's only visible user. packet_seq_err, out_of_sequence and rnr_nak_retry_err rising on a job's HCA is the fabric telling you a collective is stalling. These are endpoint symptoms: the faulty link can be anywhere on the path, so confirm with switch-side counters.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
       "targets": [
         {
-          "expr": "sum by (job_id, device, counter) (rate(ib_slurm_job_counter_total{job_id=~\"$job_id\", device=~\"$device\", counter=~\"packet_seq_err|out_of_sequence|rnr_nak_retry_err|local_ack_timeout_err\"}[$__rate_interval]))",
-          "legendFormat": "{{job_id}} {{device}} {{counter}}",
+          "expr": "sum by (instance, job_id, device, port, counter) (rate(ib_slurm_job_counter_total{instance=~\"$node\", job_id=~\"$job_id\", device=~\"$device\", counter=~\"packet_seq_err|out_of_sequence|rnr_nak_retry_err|local_ack_timeout_err\"}[$__rate_interval]))",
+          "legendFormat": "{{instance}} {{job_id}} {{device}}:{{port}} {{counter}}",
           "refId": "A"
         }
       ]
@@ -150,13 +421,29 @@
       "type": "timeseries",
       "title": "Receive-side errors by job",
       "description": "port_rcv_errors, symbol_error and remote physical errors point at a bad cable, transceiver, or switch port on the path this job is using.",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
-      "fieldConfig": { "defaults": { "unit": "cps", "custom": { "drawStyle": "line", "fillOpacity": 10 } } },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
       "targets": [
         {
-          "expr": "sum by (job_id, device, counter) (rate(ib_slurm_job_counter_total{job_id=~\"$job_id\", device=~\"$device\", counter=~\"port_rcv_errors|symbol_error|port_rcv_remote_physical_errors|port_rcv_switch_relay_errors|link_downed\"}[$__rate_interval]))",
-          "legendFormat": "{{job_id}} {{device}} {{counter}}",
+          "expr": "sum by (instance, job_id, device, port, counter) (rate(ib_slurm_job_counter_total{instance=~\"$node\", job_id=~\"$job_id\", device=~\"$device\", counter=~\"port_rcv_errors|symbol_error|port_rcv_remote_physical_errors|port_rcv_switch_relay_errors|link_downed\"}[$__rate_interval]))",
+          "legendFormat": "{{instance}} {{job_id}} {{device}}:{{port}} {{counter}}",
           "refId": "A"
         }
       ]
@@ -164,39 +451,76 @@
     {
       "type": "row",
       "title": "Per-job throughput",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 }
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      }
     },
     {
       "type": "timeseries",
       "title": "Transmit / receive bandwidth by job",
-      "description": "port_xmit_data / port_rcv_data are counted in 4-octet words per the IB spec, so the rate is multiplied by 4 to give bytes/sec.",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
-      "fieldConfig": { "defaults": { "unit": "Bps", "custom": { "drawStyle": "line", "fillOpacity": 10 } } },
+      "description": "port_xmit_data / port_rcv_data are 'data octets, divided by 4 (lanes)' (kernel sysfs-class-infiniband ABI), so the rate is multiplied by 4 to give bytes/sec.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 15
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
       "targets": [
         {
-          "expr": "sum by (job_id, device) (rate(ib_slurm_job_counter_total{job_id=~\"$job_id\", device=~\"$device\", counter=\"port_xmit_data\"}[$__rate_interval])) * 4",
-          "legendFormat": "{{job_id}} {{device}} tx",
+          "expr": "sum by (instance, job_id, device, port) (rate(ib_slurm_job_counter_total{instance=~\"$node\", job_id=~\"$job_id\", device=~\"$device\", counter=\"port_xmit_data\"}[$__rate_interval])) * 4",
+          "legendFormat": "{{instance}} {{job_id}} {{device}}:{{port}} tx",
           "refId": "A"
         },
         {
-          "expr": "sum by (job_id, device) (rate(ib_slurm_job_counter_total{job_id=~\"$job_id\", device=~\"$device\", counter=\"port_rcv_data\"}[$__rate_interval])) * 4",
-          "legendFormat": "{{job_id}} {{device}} rx",
+          "expr": "sum by (instance, job_id, device, port) (rate(ib_slurm_job_counter_total{instance=~\"$node\", job_id=~\"$job_id\", device=~\"$device\", counter=\"port_rcv_data\"}[$__rate_interval])) * 4",
+          "legendFormat": "{{instance}} {{job_id}} {{device}}:{{port}} rx",
           "refId": "B"
         }
       ]
     },
     {
       "type": "timeseries",
-      "title": "Transmit discards by job",
-      "description": "port_xmit_discards is congestion — packets dropped because the send queue could not drain. Correlates with the retransmit panel above.",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
-      "fieldConfig": { "defaults": { "unit": "cps", "custom": { "drawStyle": "line", "fillOpacity": 10 } } },
+      "title": "Transmit discards and wait by job",
+      "description": "port_xmit_discards (packets dropped) and port_xmit_wait (ticks with data queued but nothing sent) are the IB congestion signals.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 15
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
       "targets": [
         {
-          "expr": "sum by (job_id, device) (rate(ib_slurm_job_counter_total{job_id=~\"$job_id\", device=~\"$device\", counter=\"port_xmit_discards\"}[$__rate_interval]))",
-          "legendFormat": "{{job_id}} {{device}}",
+          "expr": "sum by (instance, job_id, device, port, counter) (rate(ib_slurm_job_counter_total{instance=~\"$node\", job_id=~\"$job_id\", device=~\"$device\", counter=~\"port_xmit_discards|port_xmit_wait\"}[$__rate_interval]))",
+          "legendFormat": "{{instance}} {{job_id}} {{device}}:{{port}} {{counter}}",
           "refId": "A"
         }
       ]
@@ -204,42 +528,156 @@
     {
       "type": "row",
       "title": "Device level (always present, unattributed)",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 }
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Device-level errors (every port, attributed or not)",
+      "description": "The same error counters at device level. This is where a fabric problem on a shared port shows up; read it with 'Jobs per port' to see who was on it.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance, device, port, counter) (rate(ib_slurm_device_counter_total{instance=~\"$node\", device=~\"$device\", counter=~\"packet_seq_err|out_of_sequence|rnr_nak_retry_err|local_ack_timeout_err|port_rcv_errors|symbol_error|port_rcv_remote_physical_errors|port_rcv_switch_relay_errors|link_downed\"}[$__rate_interval]))",
+          "legendFormat": "{{instance}} {{device}}:{{port}} {{counter}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Jobs per port",
+      "description": "ib_slurm_device_jobs. Above 1 means attribution is suppressed. At 1 it can still be suppressed: by non-job users in qp mode (ib_slurm_device_nonjob_users), by incomplete evidence (ib_slurm_scrape_error, ib_slurm_pid_fd_unreadable), or because the one user is an unresolved SLUID allocation. ib_slurm_job_device_attributed says whether it actually is.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "ib_slurm_device_jobs{instance=~\"$node\", device=~\"$device\"}",
+          "legendFormat": "{{instance}} {{device}}:{{port}}",
+          "refId": "A"
+        }
+      ]
     },
     {
       "type": "state-timeline",
       "title": "Port state",
-      "description": "ib_slurm_device_port_up — 1 when the port is ACTIVE. Device-level metrics are emitted whether or not a job could be attributed, so a fabric problem is visible even on a shared or unattributed device.",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 24 },
+      "description": "ib_slurm_device_port_up — 1 when the port is ACTIVE.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
       "fieldConfig": {
         "defaults": {
-          "custom": { "fillOpacity": 80 },
+          "custom": {
+            "fillOpacity": 80
+          },
           "mappings": [
-            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "ACTIVE", "color": "green" } } }
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "ACTIVE",
+                  "color": "green"
+                }
+              }
+            }
           ]
         }
       },
       "targets": [
         {
-          "expr": "ib_slurm_device_port_up{device=~\"$device\"}",
-          "legendFormat": "{{device}}:{{port}} ({{link_layer}} {{rate}})",
+          "expr": "ib_slurm_device_port_up{instance=~\"$node\", device=~\"$device\"}",
+          "legendFormat": "{{instance}} {{device}}:{{port}} ({{link_layer}} {{rate}})",
           "refId": "A"
         }
       ]
     },
     {
       "type": "table",
-      "title": "Detected cgroup layout",
-      "description": "ib_slurm_cgroup_layout_info — which cgroup layout the exporter detected on this node (v1, v2, or v2+SLUID). SLUID layout is where the unresolved-allocation metric matters.",
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 24 },
-      "options": { "showHeader": true },
+      "title": "Detected cgroup layout and scope",
+      "description": "ib_slurm_cgroup_layout_info per node. layout=unknown with an empty scope means no Slurm cgroup root was found (ib_slurm_cgroup_scope_found is 0 then; it is not shown here): check --cgroup-root / --slurm-scope.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "options": {
+        "showHeader": true
+      },
       "targets": [
-        { "expr": "ib_slurm_cgroup_layout_info", "format": "table", "instant": true, "refId": "A" }
+        {
+          "expr": "ib_slurm_cgroup_layout_info{instance=~\"$node\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
       ],
       "transformations": [
-        { "id": "organize", "options": { "excludeByName": { "Time": true, "Value": true, "__name__": true, "job": true } } }
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "job": true
+            }
+          }
+        }
       ]
     }
   ]

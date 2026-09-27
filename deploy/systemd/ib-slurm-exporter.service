@@ -1,0 +1,74 @@
+# Hardened unit for a bare-metal compute node.
+#
+# Not tested on a real host: `systemd-analyze verify` and a live start have
+# not been run (the development machine is macOS). Review before use.
+#
+# Install: create the user (`useradd --system --no-create-home
+# ib-slurm-exporter`), copy the binary to /usr/local/bin, copy this file to
+# /etc/systemd/system/, then `systemctl daemon-reload && systemctl enable
+# --now ib-slurm-exporter`.
+
+[Unit]
+Description=ib-slurm-exporter (InfiniBand/RoCE counters attributed to Slurm jobs)
+Documentation=https://github.com/Zhanyl-tech/ib-slurm-exporter
+After=network-online.target slurmd.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Bind to the management network address rather than :9836 where possible:
+# the port serves job IDs (and, unless --no-user-labels, user/account/
+# partition) without authentication.
+ExecStart=/usr/local/bin/ib-slurm-exporter \
+    --listen=:9836 \
+    --squeue-path=/usr/bin/squeue
+Restart=on-failure
+RestartSec=5s
+
+# Non-root, with the two privileges reading other users' /proc/<pid>/fd
+# takes (per the kernel source, not tested on a live host here): the fd
+# directory is mode 0500 (fs/proc/base.c) and proc_fd_permission
+# (fs/proc/fd.c) only lets CAP_DAC_READ_SEARCH list it; reading each link
+# then needs ptrace access (call_proc_get_link), i.e. CAP_SYS_PTRACE.
+# Dropping either one makes every job PID unreadable, which the exporter
+# reports and answers by attributing nothing. CAP_DAC_READ_SEARCH also
+# covers cgroup or sysfs files a site has made unreadable to other users.
+User=ib-slurm-exporter
+Group=ib-slurm-exporter
+AmbientCapabilities=CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+CapabilityBoundingSet=CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+NoNewPrivileges=yes
+
+# Everything it reads is read-only; it writes nothing.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+# AF_UNIX for munge (squeue), AF_INET/6 for slurmctld and scrapes,
+# AF_NETLINK for `rdma` in --ownership=qp.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+# Deliberately NOT set: ProtectProc=invisible, which per systemd.exec(5)
+# hides "processes owned by other users" from /proc — exactly what this
+# exporter must see (it would report them unreadable and suppress all
+# attribution). ProtectProc=ptraceable might be compatible with
+# CAP_SYS_PTRACE; that has not been tested. PrivateUsers= is also unset.
+
+# If slurm.conf sets PrivateData=jobs, a non-root squeue may only list the
+# exporter user's own jobs, leaving everyone else's labels empty (not tested
+# here). Such sites can run squeue-less (--squeue-path=): SLUIDs still
+# resolve locally from slurmstepd process titles.
+
+[Install]
+WantedBy=multi-user.target

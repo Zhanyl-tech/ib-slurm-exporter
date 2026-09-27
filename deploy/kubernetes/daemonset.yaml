@@ -1,0 +1,88 @@
+# ib-slurm-exporter as a DaemonSet on nodes that run Slurm jobs.
+#
+# UNTESTED: no Kubernetes cluster was available while writing this. It has
+# been checked only for YAML syntax. No image is published — build one from
+# the Dockerfile and replace the image below.
+#
+# Two things are unverified and matter:
+#   - Where slurmstepd.scope appears in the host cgroup tree when slurmd
+#     itself runs in a pod (e.g. Slinky). Discovery only looks two slice
+#     levels deep under --cgroup-root; set --slurm-scope explicitly after
+#     running `find /sys/fs/cgroup -name '*slurmstepd.scope'` on a node.
+#   - That the hostPath bind of /sys includes the cgroup2 mount at
+#     /sys/fs/cgroup on your runtime. If ib_slurm_cgroup_scope_found is 0,
+#     mount /sys/fs/cgroup separately.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ib-slurm-exporter
+  labels:
+    app.kubernetes.io/name: ib-slurm-exporter
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ib-slurm-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ib-slurm-exporter
+    spec:
+      # cgroup.procs lists host PIDs, so /proc must be the host's PID
+      # namespace. Without this every job PID looks hidden and the exporter
+      # (correctly) suppresses all attribution.
+      hostPID: true
+      # nodeSelector:
+      #   feature.node.kubernetes.io/rdma.available: "true"
+      containers:
+        - name: exporter
+          image: example.invalid/ib-slurm-exporter:replace-me
+          args:
+            - --listen=:9836
+            - --sys-root=/host/sys/class/infiniband
+            - --verbs-root=/host/sys/class/infiniband_verbs
+            - --cgroup-root=/host/sys/fs/cgroup
+            # No squeue (or munge) in the image. Job IDs still come from
+            # cgroups and slurmstepd titles; user/account/partition labels
+            # stay empty.
+            - --squeue-path=
+            # - --slurm-scope=<path relative to /sys/fs/cgroup>
+            # --ownership=qp needs iproute2's rdma, which the distroless
+            # image does not contain. It would also read IPoIB interfaces
+            # from /host/sys/class/net (the sibling of --sys-root); whether
+            # a hostPath /sys shows the host's network interfaces there is
+            # unverified.
+          ports:
+            - name: metrics
+              containerPort: 9836
+          securityContext:
+            # Root with every capability dropped except the two it needs to
+            # read other users' /proc/<pid>/fd (without CAP_DAC_OVERRIDE,
+            # uid 0 is held to the directory's mode like anyone else):
+            # DAC_READ_SEARCH to list the mode-0500 fd directory, SYS_PTRACE
+            # to read its links. From the kernel source (fs/proc/fd.c,
+            # fs/proc/base.c), not tested on a cluster.
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+              add: ["SYS_PTRACE", "DAC_READ_SEARCH"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: sys
+              mountPath: /host/sys
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+      volumes:
+        - name: sys
+          hostPath:
+            path: /sys
+            type: Directory
